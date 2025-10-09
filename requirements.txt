@@ -1,0 +1,9 @@
+fastapi
+uvicorn[standard]
+pydantic
+litellm
+celery
+redis
+python-dotenv
+aiofiles
+jinja2
