@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Task Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .htmx-indicator { opacity: 0; transition: opacity 200ms ease-in; }
+        .htmx-request .htmx-indicator { opacity: 1; }
+        .htmx-request.htmx-indicator { opacity: 1; }
+    </style>
+</head>
+<body class="bg-slate-900 text-gray-200">
+
+    <div class="min-h-screen flex flex-col items-center justify-center p-4">
+        <div class="w-full max-w-3xl">
+            <header class="text-center mb-10">
+                <h1 class="text-5xl font-bold bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+                    Smart Task Planner
+                </h1>
+                <p class="text-lg text-slate-400 mt-3">Transform your ideas into actionable plans with AI precision.</p>
+            </header>
+
+            <main>
+                <div class="bg-slate-800/50 p-6 sm:p-8 rounded-xl shadow-2xl border border-slate-700">
+                    <form 
+                        hx-post="/api/generate-plan" 
+                        hx-target="#response-container" 
+                        hx-swap="innerHTML"
+                        hx-indicator="#loading-spinner">
+                        
+                        <div class="mb-5">
+                            <label for="goal" class="block text-slate-300 text-sm font-medium mb-2">Describe your goal:</label>
+                            <textarea name="goal" id="goal" rows="4" class="w-full bg-slate-900/70 border border-slate-600 rounded-lg py-3 px-4 text-slate-200 leading-tight focus:outline-none focus:ring-2 focus:ring-sky-500 placeholder-slate-500" placeholder="e.g., Launch a new SaaS product for project management in 4 months..."></textarea>
+                        </div>
+                        
+                        <div class="flex items-center justify-end">
+                            <button type="submit" class="group relative inline-flex items-center justify-center px-6 py-2.5 font-medium text-white bg-slate-800 rounded-lg shadow-md hover:bg-slate-700 transition-all duration-200">
+                                <span class="absolute top-0 left-0 w-full h-full bg-gradient-to-r from-sky-500 to-cyan-400 opacity-0 group-hover:opacity-100 transition-opacity duration-300 rounded-lg"></span>
+                                <span class="relative flex items-center">
+                                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="mr-2"><path d="m21.44 11.05-9.19 9.19a6 6 0 0 1-8.49-8.49l8.57-8.57A4 4 0 1 1 18 8.84l-8.59 8.57a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                                    Generate Plan
+                                    <span id="loading-spinner" class="htmx-indicator ml-3">
+                                        <svg class="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    </span>
+                                </span>
+                            </button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="response-container" class="mt-10">
+                    <!-- Results will be loaded here -->
+                </div>
+            </main>
+        </div>
+    </div>
+</body>
+</html>
