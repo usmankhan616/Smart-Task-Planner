@@ -21,6 +21,16 @@ class Plan(SQLModel, table=True):
     user_goal: str
     
     tasks: List["Task"] = Relationship(back_populates="plan")
+    
+    owner_id: Optional[int] = Field(default=None, foreign_key="user.id")
+    owner: Optional["User"] = Relationship(back_populates="plans")
 
 class PlanResponse(SQLModel):
     plan: List[Task]
+
+class User(SQLModel, table=True):
+    id: Optional[int] = Field(default=None, primary_key=True)
+    email: str = Field(unique=True, index=True)
+    hashed_password: str
+    
+    plans: List["Plan"] = Relationship(back_populates="owner")
