@@ -8,7 +8,7 @@ from .celery_config import celery_app
 from .models import PlanResponse, Plan, Task
 from .database import engine
 
-# Load environment variables from .env file
+
 load_dotenv()
 
 # --- Feature: Redis for Caching and Task Brokering ---
