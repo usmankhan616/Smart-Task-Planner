@@ -4,10 +4,15 @@ from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm
 from celery.result import AsyncResult
 from sqlmodel import Session, select
+from typing import Optional
+
 from .tasks import generate_plan_task
 from .database import create_db_and_tables, engine
 from .models import User, Plan
-from .security import get_password_hash, create_access_token, verify_password, get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
+from .security import (
+    get_password_hash, create_access_token, verify_password, 
+    get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
+)
 from datetime import timedelta
 
 app = FastAPI(title="Smart Task Planner")
@@ -17,10 +22,12 @@ templates = Jinja2Templates(directory="templates")
 def on_startup():
     create_db_and_tables()
 
+# This is the key change. We check if a user exists and redirect if not.
 @app.get("/", response_class=HTMLResponse)
-async def read_root(request: Request, current_user: User = Depends(get_current_user)):
+async def read_root(request: Request, current_user: Optional[User] = Depends(get_current_user)):
     if not current_user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    
     return templates.TemplateResponse("index.html", {"request": request, "user": current_user})
 
 @app.get("/signup", response_class=HTMLResponse)
@@ -45,10 +52,12 @@ def get_login_form(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.post("/login")
-def handle_login(response: RedirectResponse, form_data: OAuth2PasswordRequestForm = Depends()):
+def handle_login(form_data: OAuth2PasswordRequestForm = Depends()):
     with Session(engine) as session:
         user = session.exec(select(User).where(User.email == form_data.username)).first()
         if not user or not verify_password(form_data.password, user.hashed_password):
+            # We can return an error to the login page instead of raising an exception
+            # This requires adding an error display to login.html
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -64,13 +73,16 @@ def handle_login(response: RedirectResponse, form_data: OAuth2PasswordRequestFor
         return response
 
 @app.get("/logout")
-def logout(response: RedirectResponse):
+def logout():
     response = RedirectResponse(url="/login")
     response.delete_cookie(key="access_token")
     return response
 
+# We add the security dependency to all protected API routes
 @app.post("/api/generate-plan")
-async def post_generate_plan(request: Request, current_user: User = Depends(get_current_user), goal: str = Form(...)):
+async def post_generate_plan(request: Request, goal: str = Form(...), current_user: User = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     if not goal:
         return HTMLResponse("Goal is required.", status_code=400)
     
@@ -79,6 +91,8 @@ async def post_generate_plan(request: Request, current_user: User = Depends(get_
 
 @app.get("/api/task-status/{task_id}")
 async def get_task_status(request: Request, task_id: str, current_user: User = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
     task_result = AsyncResult(task_id)
     if task_result.ready():
         if task_result.successful():
