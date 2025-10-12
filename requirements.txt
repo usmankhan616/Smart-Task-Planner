@@ -1,28 +1,27 @@
 # Core Web Framework
-# Unpinned to allow pip to find a compatible pre-built version
 fastapi
 uvicorn[standard]
-jinja2==3.1.4
+jinja2
 python-multipart
 
 # Database and Data Validation
-sqlmodel==0.0.18
-
-# Pydantic is a dependency of FastAPI; unpinning FastAPI handles this.
+sqlmodel
 psycopg2-binary
 
 # Asynchronous Tasks
-celery==5.4.0
-redis==5.0.4
+celery
+redis
 
 # LLM Abstraction
-litellm==1.38.4
+litellm
 
 # Authentication & Security
-# Unpinned to allow pip to find the best compatible versions
 passlib[bcrypt]
 python-jose[cryptography]
 
 # Environment & Utilities
-python-dotenv==1.0.1
-aiofiles==23.2.1
+python-dotenv
+aiofiles
+
+# Windows compatibility for Celery
+gevent
