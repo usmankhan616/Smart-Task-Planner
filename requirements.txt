@@ -16,8 +16,7 @@ redis
 litellm
 
 # Authentication & Security
-passlib[bcrypt]
-bcrypt
+# NOTE: passlib and bcrypt have been temporarily removed for prototyping.
 python-jose[cryptography]
 
 # Environment & Utilities
