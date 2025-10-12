@@ -17,6 +17,7 @@ litellm
 
 # Authentication & Security
 passlib[bcrypt]
+bcrypt
 python-jose[cryptography]
 
 # Environment & Utilities
