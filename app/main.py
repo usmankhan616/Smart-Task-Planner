@@ -8,7 +8,7 @@ from typing import Optional
 
 from .tasks import generate_plan_task
 from .database import create_db_and_tables, engine
-from .models import User, Plan
+from .models import User
 from .security import (
     get_password_hash, create_access_token, verify_password, 
     get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
@@ -22,7 +22,6 @@ templates = Jinja2Templates(directory="templates")
 def on_startup():
     create_db_and_tables()
 
-# This is the key change. We check if a user exists and redirect if not.
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, current_user: Optional[User] = Depends(get_current_user)):
     if not current_user:
@@ -56,8 +55,6 @@ def handle_login(form_data: OAuth2PasswordRequestForm = Depends()):
     with Session(engine) as session:
         user = session.exec(select(User).where(User.email == form_data.username)).first()
         if not user or not verify_password(form_data.password, user.hashed_password):
-            # We can return an error to the login page instead of raising an exception
-            # This requires adding an error display to login.html
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Incorrect email or password",
@@ -78,13 +75,10 @@ def logout():
     response.delete_cookie(key="access_token")
     return response
 
-# We add the security dependency to all protected API routes
 @app.post("/api/generate-plan")
 async def post_generate_plan(request: Request, goal: str = Form(...), current_user: User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-    if not goal:
-        return HTMLResponse("Goal is required.", status_code=400)
     
     task = generate_plan_task.delay(goal)
     return templates.TemplateResponse("polling.html", {"request": request, "task_id": task.id, "status": "PENDING"})
@@ -93,10 +87,19 @@ async def post_generate_plan(request: Request, goal: str = Form(...), current_us
 async def get_task_status(request: Request, task_id: str, current_user: User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+
     task_result = AsyncResult(task_id)
     if task_result.ready():
-        if task_result.successful():
-            return templates.TemplateResponse("result.html", {"request": request, "plan": task_result.result})
-        else:
-            return HTMLResponse(f"<p class='text-red-500'>Task failed: {task_result.result}</p>")
-    return templates.TemplateResponse("polling.html", {"request": request, "task_id": task_id, "status": task_result.status})
+        # THIS IS THE KEY CHANGE: We no longer check if the task was "successful".
+        # We just get the result (which will be a dictionary) and pass it to the template.
+        return templates.TemplateResponse("result.html", {
+            "request": request, 
+            "plan": task_result.result
+        })
+    
+    # If the task is not ready, we continue to show the polling template.
+    return templates.TemplateResponse("polling.html", {
+        "request": request, 
+        "task_id": task_id, 
+        "status": task_result.status
+    })
