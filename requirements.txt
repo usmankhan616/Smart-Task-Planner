@@ -1,5 +1,5 @@
-# Core Web Framework
-fastapi
+# Core Web Framework (Pinned to a stable, compatible version)
+fastapi==0.104.1
 uvicorn[standard]
 jinja2
 python-multipart
@@ -15,10 +15,9 @@ redis
 # LLM Abstraction
 litellm
 
-# Authentication & Security
-# Pinned to modern, known-good versions to fix a specific bug
-passlib[bcrypt]>=5.0.0
-bcrypt>=4.0.0
+# Authentication & Security (Pinned to versions compatible with older Python)
+passlib[bcrypt]==1.7.4
+bcrypt==3.2.0
 python-jose[cryptography]
 
 # Environment & Utilities
@@ -27,3 +26,7 @@ aiofiles
 
 # Windows compatibility for Celery
 gevent
+
+# Explicitly require Pydantic v2 for FastAPI compatibility
+pydantic>=2.0.0,<3.0.0
+
