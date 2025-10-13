@@ -16,8 +16,9 @@ redis
 litellm
 
 # Authentication & Security
-passlib[bcrypt]
-bcrypt
+# Pinned to modern, known-good versions to fix a specific bug
+passlib[bcrypt]>=5.0.0
+bcrypt>=4.0.0
 python-jose[cryptography]
 
 # Environment & Utilities
