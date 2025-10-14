@@ -30,3 +30,5 @@ gevent
 # Explicitly require Pydantic v2 for FastAPI compatibility
 pydantic>=2.0.0,<3.0.0
 
+# Provider-specific libraries for LiteLLM
+google-generativeai
