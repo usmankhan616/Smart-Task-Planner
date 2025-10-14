@@ -24,24 +24,10 @@ def generate_plan_task(self, user_goal: str):
         models_list = [model.strip() for model in llm_models_str.split(',')]
 
         prompt = (
-            f"You are an expert project planner. Your goal is to break down a user's request into a detailed, actionable plan. "
-            f'The user\'s goal is: "{user_goal}" '
-            "Break this down into actionable tasks. Include phases for research, design, development, and launch. "
-            "Return ONLY a valid JSON object with a key named 'plan' containing an array of task objects. "
-            "Each task object MUST have these keys: 'taskName', 'description', 'duration', 'dependencies', 'phase', and 'priority'. "
-            "Do not include any text outside the JSON object. Example output: "
-            "{{"
-            "  \"plan\": ["
-            "    {{"
-            "      \"taskName\": \"Research requirements\"," 
-            "      \"description\": \"Gather all requirements for the mobile app.\"," 
-            "      \"duration\": \"2 days\"," 
-            "      \"dependencies\": \"None\"," 
-            "      \"phase\": \"Research\"," 
-            "      \"priority\": \"High\""
-            "    }}"
-            "  ]"
-            "}}"
+            f"Break down the following goal into a list of actionable tasks as JSON. "
+            f'Goal: "{user_goal}" '
+            "Each task should have: taskName, description, duration, dependencies, phase, priority. "
+            "Return only a JSON object with a 'plan' key containing the tasks."
         )
 
 
