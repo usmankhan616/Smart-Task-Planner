@@ -1,105 +1,128 @@
-
 import os
 import json
 import redis
+import uuid
+import datetime
 from dotenv import load_dotenv
-from litellm import completion, RateLimitError, APIConnectionError, AuthenticationError
-from sqlmodel import Session
+from sqlmodel import Session, select
 from .celery_config import celery_app
-from .models import PlanResponse, Plan, Task
+from .models import Plan, Task
 from .database import engine
+
+# OpenAI import
+try:
+    import openai
+except Exception:
+    openai = None
 
 load_dotenv()
 redis_client = redis.Redis(host='localhost', port=6379, db=0, decode_responses=True)
+OPENAI_KEY = os.getenv("OPENAI_API_KEY")
+if openai and OPENAI_KEY:
+    openai.api_key = OPENAI_KEY
 
 @celery_app.task(bind=True)
-def generate_plan_task(self, user_goal: str):
+def generate_plan_task(self, user_goal: str, deadline: str = None, owner_id: int = None):
+    cache_key = f"plan:{user_goal.lower().strip()}"
+    cached_result = redis_client.get(cache_key)
+    if cached_result:
+        return json.loads(cached_result)
+
+    plan_id = str(uuid.uuid4())
     try:
-        cache_key = f"plan:{user_goal.lower().strip()}"
-        cached_result = redis_client.get(cache_key)
-        if cached_result:
-            return json.loads(cached_result)
+        if openai and OPENAI_KEY:
+            prompt = (
+                "You are an expert project planner. Given a short user goal, break it into an ordered list of tasks. "
+                "Return JSON: {title, generated_by, tasks:[{id,title,duration_days,dependencies,priority,notes}], created_at}.\n\n"
+                f"Goal: {user_goal}\n"
+            )
+            if deadline:
+                prompt += f"Deadline: {deadline}\n"
+            prompt += "Return only JSON."
 
-        llm_models_str = os.getenv("LLM_MODELS", "gpt-3.5-turbo")
-        models_list = [model.strip() for model in llm_models_str.split(',')]
-
-        prompt = (
-            f"Break down the following goal into a list of actionable tasks as JSON. "
-            f'Goal: "{user_goal}" '
-            "Each task should have: taskName, description, duration, dependencies, phase, priority. "
-            "Return only a JSON object with a 'plan' key containing the tasks."
-        )
-
-
-        for model in models_list:
+            response = openai.ChatCompletion.create(
+                model="gpt-4o",
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=800,
+                temperature=0.2,
+            )
+            content = response['choices'][0]['message']['content']
             try:
-                print(f"--- Attempting to generate plan with model: {model} ---")
-                response = completion(
-                    model=model,
-                    messages=[{"content": prompt, "role": "user"}],
-                    response_format={"type": "json_object"},
-                )
-
-                print(f"--- Successfully generated plan with model: {model} ---")
-                result_content = response.choices[0].message.content
-                print(f"LLM raw response: {result_content}")  # Log raw response
-
-                from pydantic import ValidationError
-                try:
-                    validated_result = PlanResponse.model_validate_json(result_content)
-                except ValidationError as ve:
-                    print(f"Validation error: {ve}")  # Log validation error
-                    return {"error": "AI response format error. Please try a simpler goal or contact support."}
-
-                final_output = validated_result.model_dump()
-
-                _save_plan_to_db(user_goal, final_output)
-                redis_client.set(cache_key, json.dumps(final_output), ex=3600)
-                return final_output
-
-            except RateLimitError as e:
-                print(f"Rate limit hit for model '{model}': {e}")
-                return {"error": "The AI service is currently busy due to too many requests. Please wait a moment and try again."}
-            except APIConnectionError as e:
-                print(f"API connection error for model '{model}': {e}")
-                continue
-            except AuthenticationError as e:
-                print(f"Authentication error for model '{model}': {e}")
-                continue
-            except Exception as e:
-                # Handle NotFoundError and other unexpected errors
-                if hasattr(e, 'message') and 'NOT_FOUND' in str(e):
-                    print(f"Model not found error for model '{model}': {e}")
-                    return {"error": f"The model '{model}' is not available for your API key or region. Please check your .env and use only supported models."}
-                print(f"Unexpected error for model '{model}': {e}")
-                continue
-
-        print("--- All models failed. Returning a user-friendly error. ---")
-        return {"error": "All of our AI models are currently busy or unavailable. Please try again in a few minutes."}
-
+                plan = json.loads(content)
+            except Exception:
+                import re
+                match = re.search(r"\{.*\}", content, re.DOTALL)
+                if match:
+                    plan = json.loads(match.group(0))
+                else:
+                    raise
+            plan.setdefault('created_at', str(datetime.datetime.utcnow()))
+            plan['generated_by'] = 'openai'
+        else:
+            raise RuntimeError("OpenAI not configured")
     except Exception as e:
-        print(f"--- An unexpected critical error occurred in the task: {e} ---")
-        return {"error": "An unexpected server error occurred. Please try again later."}
+        plan = rule_based_planner(user_goal, deadline)
+        plan['fallback_reason'] = str(e)
 
-def _save_plan_to_db(user_goal: str, plan_data: dict):
+    plan_id = str(uuid.uuid4())
+    _save_plan_to_db(user_goal, plan, owner_id)
+    redis_client.set(cache_key, json.dumps(plan), ex=3600)
+    return {"id": plan_id, "plan": plan}
+
+def rule_based_planner(goal_text, deadline_date=None):
+    canonical_steps = [
+        ("Clarify goal & constraints", 1),
+        ("Research & gather requirements", 2),
+        ("Design solution / plan tasks", 2),
+        ("Implement / execute", 5),
+        ("Testing / validation", 2),
+        ("Launch / deliver", 1),
+        ("Monitor & iterate", 3),
+    ]
+    tasks = []
+    current_day_offset = 0
+    for i, (title, dur) in enumerate(canonical_steps, start=1):
+        dur_adj = max(1, int(round(dur)))
+        start_date = datetime.date.today() + datetime.timedelta(days=current_day_offset)
+        end_date = start_date + datetime.timedelta(days=dur_adj - 1)
+        tasks.append({
+            "id": f"t{i}",
+            "title": title,
+            "duration_days": dur_adj,
+            "start_date": str(start_date),
+            "end_date": str(end_date),
+            "dependencies": [f"t{i-1}"] if i > 1 else [],
+            "priority": "medium",
+            "notes": f"Auto-generated from goal: {goal_text[:120]}"
+        })
+        current_day_offset += dur_adj
+    return {
+        "title": goal_text,
+        "generated_by": "rule_based",
+        "tasks": tasks,
+        "created_at": str(datetime.datetime.utcnow())
+    }
+
+def _save_plan_to_db(user_goal: str, plan_data: dict, owner_id: int = None):
     with Session(engine) as session:
-        if "error" in plan_data:
-            return
-
-        existing_plan = session.exec(
-            Plan.select().where(Plan.user_goal == user_goal)
-        ).first()
+        statement = select(Plan).where(Plan.user_goal == user_goal)
+        existing_plan = session.exec(statement).first()
         if existing_plan:
             return
-
-        new_plan = Plan(user_goal=user_goal)
+        new_plan = Plan(user_goal=user_goal, owner_id=owner_id)
         session.add(new_plan)
         session.commit()
         session.refresh(new_plan)
-
-        for task_data in plan_data.get("plan", []):
-            new_task = Task.model_validate(task_data)
-            new_task.plan_id = new_plan.id
+        for task_data in plan_data.get("tasks", []):
+            mapped_task = {
+                'taskName': task_data.get('title', ''),
+                'description': task_data.get('notes', ''),
+                'duration': str(task_data.get('duration_days', '')),
+                'dependencies': ','.join(task_data.get('dependencies', [])) if isinstance(task_data.get('dependencies', []), list) else str(task_data.get('dependencies', '')),
+                'phase': '',
+                'priority': task_data.get('priority', 'medium'),
+                'plan_id': new_plan.id
+            }
+            new_task = Task.model_validate(mapped_task)
             session.add(new_task)
-
         session.commit()

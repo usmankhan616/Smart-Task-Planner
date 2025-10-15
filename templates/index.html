@@ -19,7 +19,11 @@
     <div class="min-h-screen flex flex-col items-center justify-center p-4">
         <div class="w-full max-w-3xl">
             <div class="absolute top-4 right-4 text-sm text-slate-400">
-                Logged in as: <strong>{{ user.email }}</strong> | <a href="/logout" class="text-sky-400 hover:underline">Logout</a>
+                Logged in as: <strong>{{ user.email }}</strong> |
+                <div class="inline-flex space-x-2 ml-2">
+                    <a href="/profile" class="px-3 py-1 bg-slate-800 hover:bg-sky-600 text-sky-400 hover:text-white rounded-md border border-slate-600 hover:border-sky-500 transition-all duration-200">Profile</a>
+                    <a href="/logout" class="px-3 py-1 bg-slate-800 hover:bg-red-600 text-red-400 hover:text-white rounded-md border border-slate-600 hover:border-red-500 transition-all duration-200">Logout</a>
+                </div>
             </div>
 
             <header class="text-center mb-10">
@@ -61,6 +65,33 @@
                 </div>
 
                 <div id="response-container" class="mt-10">
+                    {% if plan %}
+                        <div class="bg-slate-800/50 p-6 sm:p-8 rounded-xl shadow-2xl border border-slate-700 animate-fade-in">
+                            <h2 class="text-3xl font-bold mb-6 bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">Your Action Plan</h2>
+                            <div class="space-y-4">
+                                {% for task in plan.tasks %}
+                                <div class="p-4 bg-slate-800 rounded-lg border border-slate-700 transition-all hover:border-sky-500 hover:bg-slate-700/50">
+                                    <div class="flex flex-col sm:flex-row justify-between sm:items-center">
+                                        <h3 class="text-lg font-semibold text-sky-300">{{ task.taskName }}</h3>
+                                        <div class="flex items-center space-x-3 mt-2 sm:mt-0 text-xs">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full font-medium bg-cyan-900 text-cyan-300">
+                                                {{ task.phase }}
+                                            </span>
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full font-medium bg-slate-700 text-slate-300">
+                                                Priority: {{ task.priority }}
+                                            </span>
+                                        </div>
+                                    </div>
+                                    <p class="mt-2 text-sm text-slate-400">{{ task.description }}</p>
+                                    <div class="mt-3 pt-3 border-t border-slate-700 flex flex-col sm:flex-row text-xs text-slate-500 space-y-1 sm:space-y-0 sm:space-x-6">
+                                        <span><strong>Duration:</strong> {{ task.duration }}</span>
+                                        <span><strong>Dependencies:</strong> {{ task.dependencies if task.dependencies else 'None' }}</span>
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    {% endif %}
                 </div>
             </main>
         </div>

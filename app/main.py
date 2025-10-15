@@ -2,18 +2,20 @@ from fastapi import FastAPI, Request, Depends, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from fastapi.security import OAuth2PasswordRequestForm
-from celery.result import AsyncResult
 from sqlmodel import Session, select
 from typing import Optional
-
-from .tasks import generate_plan_task
+from datetime import timedelta
 from .database import create_db_and_tables, engine
 from .models import User
 from .security import (
     get_password_hash, create_access_token, verify_password, 
     get_current_user, ACCESS_TOKEN_EXPIRE_MINUTES
 )
-from datetime import timedelta
+import os
+from dotenv import load_dotenv
+
+# Load environment variables
+load_dotenv()
 
 app = FastAPI(title="Smart Task Planner")
 templates = Jinja2Templates(directory="templates")
@@ -26,8 +28,8 @@ def on_startup():
 async def read_root(request: Request, current_user: Optional[User] = Depends(get_current_user)):
     if not current_user:
         return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
-    
-    return templates.TemplateResponse("index.html", {"request": request, "user": current_user})
+
+    return templates.TemplateResponse("index.html", {"request": request, "user": current_user, "plan": None})
 
 @app.get("/signup", response_class=HTMLResponse)
 def get_signup_form(request: Request):
@@ -75,31 +77,151 @@ def logout():
     response.delete_cookie(key="access_token")
     return response
 
+@app.get("/tasks")
+def tasks_redirect():
+    return RedirectResponse(url="/profile", status_code=status.HTTP_302_FOUND)
+
+
+@app.get("/profile", response_class=HTMLResponse)
+async def view_profile(request: Request, current_user: Optional[User] = Depends(get_current_user)):
+    if not current_user:
+        return RedirectResponse(url="/login", status_code=status.HTTP_302_FOUND)
+    from .models import Plan, Task, TaskProgress
+    with Session(engine) as session:
+        # Get all plans for the current user ordered by creation date
+        user_plans = session.exec(
+            select(Plan)
+            .where(Plan.owner_id == current_user.id)
+            .order_by(Plan.created_at.desc())
+        ).all()
+        
+        # Get all tasks for tracking with their progress
+        all_user_tasks = []
+        for plan in user_plans:
+            for task in plan.tasks:
+                # Get latest progress for each task
+                latest_progress = session.exec(
+                    select(TaskProgress)
+                    .where(TaskProgress.task_id == task.id)
+                    .order_by(TaskProgress.timestamp.desc())
+                ).first()
+                all_user_tasks.append({
+                    'task': task,
+                    'plan': plan,
+                    'latest_progress': latest_progress
+                })
+        
+    return templates.TemplateResponse("profile.html", {
+        "request": request, 
+        "user": current_user, 
+        "plans": user_plans,
+        "task_progress": all_user_tasks
+    })
+
 @app.post("/api/generate-plan")
 async def post_generate_plan(request: Request, goal: str = Form(...), current_user: User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    task = generate_plan_task.delay(goal)
-    return templates.TemplateResponse("polling.html", {"request": request, "task_id": task.id, "status": "PENDING"})
+    from .models import Plan, Task, TaskStatus
+    from .llm_service import llm_service
+    import logging
+    from fastapi.responses import HTMLResponse
+    
+    logger = logging.getLogger(__name__)
+    
+    try:
+        logger.info(f"Generating plan for goal: {goal[:100]}...")
+        
+        # Generate tasks using AI (multi-model)
+        task_breakdowns = await llm_service.generate_tasks(goal)
+        
+        # Save to database
+        with Session(engine) as session:
+            # Create new plan (don't check for existing to allow multiple plans)
+            new_plan = Plan(user_goal=goal, owner_id=current_user.id)
+            session.add(new_plan)
+            session.commit()
+            session.refresh(new_plan)
+            
+            plan_tasks = []
+            for breakdown in task_breakdowns:
+                new_task = Task(
+                    taskName=breakdown.task_name,
+                    description=breakdown.description,
+                    duration=breakdown.duration,
+                    dependencies=breakdown.dependencies,
+                    phase=breakdown.phase,
+                    priority=breakdown.priority,
+                    status=TaskStatus.REJECTED,  # Start as not submitted
+                    plan_id=new_plan.id
+                )
+                session.add(new_task)
+                plan_tasks.append(new_task)
+            
+            session.commit()
+            
+            # Refresh tasks to ensure they have IDs
+            for task in plan_tasks:
+                session.refresh(task)
+            
+            logger.info(f"✅ Created plan with {len(plan_tasks)} tasks")
+            plan_data = {"tasks": plan_tasks}
 
-@app.get("/api/task-status/{task_id}")
-async def get_task_status(request: Request, task_id: str, current_user: User = Depends(get_current_user)):
+        # Render the result fragment first, then auto-redirect to profile after a short delay
+        html_fragment = templates.get_template("result.html").render({
+            "request": request,
+            "plan": plan_data
+        })
+        redirect_script = """
+<script>
+  setTimeout(function(){ window.location.href = '/profile'; }, 2000);
+</script>
+"""
+        return HTMLResponse(content=html_fragment + redirect_script)
+        
+    except Exception as e:
+        logger.error(f"Error generating plan: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to generate plan: {str(e)}")
+
+@app.post("/api/toggle-task/{task_id}")
+async def toggle_task_completion(task_id: int, current_user: User = Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=401, detail="Not authenticated")
-
-    task_result = AsyncResult(task_id)
-    if task_result.ready():
-        # THIS IS THE KEY CHANGE: We no longer check if the task was "successful".
-        # We just get the result (which will be a dictionary) and pass it to the template.
-        return templates.TemplateResponse("result.html", {
-            "request": request, 
-            "plan": task_result.result
-        })
     
-    # If the task is not ready, we continue to show the polling template.
-    return templates.TemplateResponse("polling.html", {
-        "request": request, 
-        "task_id": task_id, 
-        "status": task_result.status
-    })
+    from .models import Task
+    with Session(engine) as session:
+        task = session.exec(select(Task).where(Task.id == task_id)).first()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        from .models import TaskStatus
+        # Toggle between SUBMITTED and COMPLETED
+        if task.status == TaskStatus.COMPLETED:
+            task.status = TaskStatus.SUBMITTED
+        else:
+            task.status = TaskStatus.COMPLETED
+        
+        session.commit()
+        return {"status": "success", "new_status": task.status}
+
+@app.post("/api/submit-task/{task_id}")
+async def toggle_task_submission(task_id: int, current_user: User = Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    from .models import Task
+    with Session(engine) as session:
+        task = session.exec(select(Task).where(Task.id == task_id)).first()
+        if not task:
+            raise HTTPException(status_code=404, detail="Task not found")
+        
+        from .models import TaskStatus
+        # Toggle between REJECTED (not submitted) and SUBMITTED (submitted for review)
+        if task.status == TaskStatus.SUBMITTED:
+            task.status = TaskStatus.REJECTED  # Unsubmit
+        else:
+            task.status = TaskStatus.SUBMITTED  # Submit
+        
+        session.commit()
+        return {"status": "success", "new_status": task.status}

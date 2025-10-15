@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Smart Task Planner</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+    </style>
+</head>
+<body class="bg-slate-900 text-gray-200">
+    <div class="min-h-screen p-4">
+        <div class="max-w-6xl mx-auto">
+            <!-- Header -->
+            <div class="flex justify-between items-center mb-8">
+                <div>
+                    <h1 class="text-4xl font-bold bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
+                        Profile
+                    </h1>
+                    <p class="text-slate-400 mt-2">Manage your plans and track progress</p>
+                </div>
+                <div class="text-sm text-slate-400">
+                    Logged in as: <strong>{{ user.email }}</strong> |
+                    <div class="inline-flex space-x-2 ml-2">
+                        <a href="/" class="px-3 py-1 bg-slate-800 hover:bg-sky-600 text-sky-400 hover:text-white rounded-md border border-slate-600 hover:border-sky-500 transition-all duration-200">Home</a>
+                        <a href="/logout" class="px-3 py-1 bg-slate-800 hover:bg-red-600 text-red-400 hover:text-white rounded-md border border-slate-600 hover:border-red-500 transition-all duration-200">Logout</a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Navigation Tabs -->
+            <div class="mb-8">
+                <div class="border-b border-slate-700">
+                    <nav class="-mb-px flex space-x-8">
+                        <button onclick="showTab('plans')" id="plans-tab" class="tab-button border-b-2 border-sky-500 text-sky-400 py-2 px-1 text-sm font-medium">
+                            My Plans
+                        </button>
+                        <button onclick="showTab('progress')" id="progress-tab" class="tab-button border-b-2 border-transparent text-slate-400 hover:text-slate-300 py-2 px-1 text-sm font-medium">
+                            Progress Tracking
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            <!-- My Plans Tab -->
+            <div id="plans-content" class="tab-content">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold text-slate-200 mb-4">Your Generated Plans</h2>
+                    {% if plans %}
+                        <div class="space-y-6">
+                            {% for plan in plans %}
+                            <div class="bg-slate-800/50 p-6 rounded-xl border border-slate-700">
+                                <div class="mb-4">
+                                    <h3 class="text-xl font-semibold text-sky-300 mb-2">{{ plan.user_goal }}</h3>
+                                    <p class="text-sm text-slate-400">Created on {{ plan.created_at.strftime('%B %d, %Y at %I:%M %p') if plan.created_at else 'Unknown date' }}</p>
+                                </div>
+                                
+                                <div class="space-y-3">
+                                    {% for task in plan.tasks %}
+                                    <div class="bg-slate-800 p-4 rounded-lg border border-slate-700">
+                                        <div class="flex justify-between items-start mb-2">
+                                            <h4 class="font-medium text-slate-200">{{ task.taskName }}</h4>
+                                            <div class="flex items-center space-x-2">
+                                                <button 
+                                                    onclick="toggleTaskSubmission({{ task.id }})" 
+                                                    class="task-submit-btn px-3 py-1 text-xs rounded-md border transition-colors {% if task.status.value == 'SUBMITTED' %}bg-green-600 border-green-500 text-white hover:bg-green-700{% else %}bg-slate-700 border-slate-600 text-slate-300 hover:bg-sky-600 hover:border-sky-500 hover:text-white{% endif %}"
+                                                    data-task-id="{{ task.id }}">
+                                                    {% if task.status.value == 'SUBMITTED' %}Submitted{% else %}Submit{% endif %}
+                                                </button>
+                                                <span class="text-xs px-2 py-1 rounded-full {% if task.status.value == 'SUBMITTED' %}bg-green-900 text-green-300{% else %}bg-slate-700 text-slate-400{% endif %}">
+                                                    {% if task.status.value == 'SUBMITTED' %}Submitted{% else %}Not Submitted{% endif %}
+                                                </span>
+                                            </div>
+                                        </div>
+                                        <p class="text-sm text-slate-400 mb-2">{{ task.description }}</p>
+                                        <div class="flex text-xs text-slate-500 space-x-4">
+                                            <span><strong>Duration:</strong> {{ task.duration }}</span>
+                                            <span><strong>Phase:</strong> {{ task.phase }}</span>
+                                            <span><strong>Priority:</strong> {{ task.priority }}</span>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-12">
+                            <div class="text-slate-400 text-lg mb-4">No plans generated yet</div>
+                            <a href="/" class="inline-flex items-center px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white rounded-lg transition-colors">
+                                Generate Your First Plan
+                            </a>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Progress Tracking Tab -->
+            <div id="progress-content" class="tab-content hidden">
+                <div class="mb-6">
+                    <h2 class="text-2xl font-semibold text-slate-200 mb-4">Progress Overview</h2>
+                    {% if plans %}
+                        <div class="space-y-6">
+                            {% for plan in plans %}
+                            {% set submitted_tasks = plan.tasks|selectattr('status.value', 'equalto', 'SUBMITTED')|list %}
+                            {% set total_tasks = plan.tasks|length %}
+                            {% set submission_percentage = ((submitted_tasks|length / total_tasks) * 100) if total_tasks > 0 else 0 %}
+                            
+                            <div class="bg-slate-800/50 p-6 rounded-xl border border-slate-700">
+                                <div class="mb-4">
+                                    <h3 class="text-xl font-semibold text-sky-300 mb-2">{{ plan.user_goal[:80] }}{% if plan.user_goal|length > 80 %}...{% endif %}</h3>
+                                    <p class="text-sm text-slate-400">Created on {{ plan.created_at.strftime('%B %d, %Y') if plan.created_at else 'Unknown date' }}</p>
+                                </div>
+
+                                <!-- Progress Statistics -->
+                                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                    <div class="bg-slate-800 p-4 rounded-lg text-center">
+                                        <div class="text-2xl font-bold text-sky-400">{{ "%.0f"|format(submission_percentage) }}%</div>
+                                        <div class="text-sm text-slate-400">Submitted</div>
+                                    </div>
+                                    <div class="bg-slate-800 p-4 rounded-lg text-center">
+                                        <div class="text-2xl font-bold text-green-400">{{ submitted_tasks|length }}</div>
+                                        <div class="text-sm text-slate-400">Submitted</div>
+                                    </div>
+                                    <div class="bg-slate-800 p-4 rounded-lg text-center">
+                                        <div class="text-2xl font-bold text-slate-300">{{ total_tasks }}</div>
+                                        <div class="text-sm text-slate-400">Total Tasks</div>
+                                    </div>
+                                </div>
+
+                                <!-- Progress Bar -->
+                                <div class="mb-6">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <span class="text-sm text-slate-300">Submission Progress</span>
+                                        <span class="text-sm text-slate-400">{{ submitted_tasks|length }}/{{ total_tasks }} tasks submitted</span>
+                                    </div>
+                                    <div class="w-full bg-slate-700 rounded-full h-3">
+                                        <div class="bg-gradient-to-r from-sky-500 to-cyan-400 h-3 rounded-full transition-all duration-300" style="width: {{ submission_percentage }}%"></div>
+                                    </div>
+                                </div>
+
+                                <!-- Task List -->
+                                <div class="space-y-2">
+                                    <h4 class="text-lg font-medium text-slate-200 mb-3">Task Breakdown</h4>
+                                    {% for task in plan.tasks %}
+                                    <div class="flex items-center justify-between p-3 bg-slate-800 rounded-lg">
+                                        <div class="flex items-center space-x-3">
+                                            <div class="w-4 h-4 rounded-full {% if task.status.value == 'SUBMITTED' %}bg-green-500{% else %}bg-slate-500{% endif %}"></div>
+                                            <div>
+                                                <div class="text-sm font-medium text-slate-200 {% if task.status.value == 'SUBMITTED' %}text-green-300{% endif %}">{{ task.taskName }}</div>
+                                                <div class="text-xs text-slate-500">{{ task.phase }} • {{ task.duration }}</div>
+                                            </div>
+                                        </div>
+                                        <span class="text-xs px-2 py-1 rounded-full {% if task.status.value == 'SUBMITTED' %}bg-green-900 text-green-300{% else %}bg-slate-700 text-slate-400{% endif %}">
+                                            {% if task.status.value == 'SUBMITTED' %}✓ Submitted{% else %}Not Submitted{% endif %}
+                                        </span>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                            </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="text-center py-12">
+                            <div class="text-slate-400 text-lg mb-4">No plans to track</div>
+                            <p class="text-slate-500">Generate some plans first to see progress tracking here.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+            
+            // Remove active state from all tabs
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('border-sky-500', 'text-sky-400');
+                button.classList.add('border-transparent', 'text-slate-400');
+            });
+            
+            // Show selected tab content
+            document.getElementById(tabName + '-content').classList.remove('hidden');
+            
+            // Add active state to selected tab
+            const activeTab = document.getElementById(tabName + '-tab');
+            activeTab.classList.remove('border-transparent', 'text-slate-400');
+            activeTab.classList.add('border-sky-500', 'text-sky-400');
+        }
+        
+        async function toggleTaskCompletion(taskId) {
+            try {
+                const response = await fetch(`/api/toggle-task/${taskId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    // Reload the page to reflect changes
+                    window.location.reload();
+                } else {
+                    console.error('Failed to toggle task completion');
+                }
+            } catch (error) {
+                console.error('Error toggling task completion:', error);
+            }
+        }
+        
+        async function toggleTaskSubmission(taskId) {
+            try {
+                const response = await fetch(`/api/submit-task/${taskId}`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                });
+                
+                if (response.ok) {
+                    // Reload the page to reflect changes
+                    window.location.reload();
+                } else {
+                    console.error('Failed to toggle task submission');
+                }
+            } catch (error) {
+                console.error('Error toggling task submission:', error);
+            }
+        }
+    </script>
+</body>
+</html>
