@@ -1,5 +1,8 @@
 # Smart Task Planner
 
+<img width="1912" height="922" alt="image" src="https://github.com/user-attachments/assets/aadc5ae8-9912-4ea2-b3af-975d243ac724" />
+
+
 Break user goals into actionable tasks with timelines using AI reasoning. Users sign up/log in, submit a goal (e.g., "Launch a product in 2 weeks"), and receive a structured multi-step plan with dependencies, phases, priorities, and estimated durations. Plans and tasks are stored for later tracking in the Profile page.
 
 ## Key Features
