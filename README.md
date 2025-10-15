@@ -1,6 +1,12 @@
 # Smart Task Planner
+<img width="1897" height="897" alt="Screenshot 2025-10-15 154147" src="https://github.com/user-attachments/assets/3cee9952-7197-4fc7-8391-03af5eb916f0" />
+<img width="1877" height="898" alt="Screenshot 2025-10-15 154233" src="https://github.com/user-attachments/assets/241035fc-9286-4be8-b87e-9d6f8f7d2b4a" />
+<img width="1102" height="913" alt="Screenshot 2025-10-15 154322" src="https://github.com/user-attachments/assets/3dd14c47-215c-413b-baef-36b967137008" />
+<img width="1101" height="918" alt="Screenshot 2025-10-15 154340" src="https://github.com/user-attachments/assets/b209a4aa-0e16-49e6-941b-eeb3c5f687ba" />
+<img width="1902" height="900" alt="Screenshot 2025-10-15 154047" src="https://github.com/user-attachments/assets/b8838334-23cc-4a7f-bfd0-edc516fdc642" />
 
-<img width="1912" height="922" alt="image" src="https://github.com/user-attachments/assets/aadc5ae8-9912-4ea2-b3af-975d243ac724" />
+
+
 
 
 Break user goals into actionable tasks with timelines using AI reasoning. Users sign up/log in, submit a goal (e.g., "Launch a product in 2 weeks"), and receive a structured multi-step plan with dependencies, phases, priorities, and estimated durations. Plans and tasks are stored for later tracking in the Profile page.
