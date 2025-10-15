@@ -1,5 +1,6 @@
 # Smart Task Planner
-<img width="1902" height="900" alt="Screenshot 2025-10-15 154047" src="[https://github.com/user-attachments/assets/b8838334-23cc-4a7f-bfd0-edc516fdc642](https://youtu.be/XkQks-2c0OE)" />
+[![Watch the video](https://github.com/user-attachments/assets/b8838334-23cc-4a7f-bfd0-edc516fdc642)](https://youtu.be/XkQks-2c0OE)
+
 [![Watch the Demo](https://img.youtube.com/vi/XkQks-2c0OE/0.jpg)](https://youtu.be/XkQks-2c0OE)
 
 https://youtu.be/XkQks-2c0OE
