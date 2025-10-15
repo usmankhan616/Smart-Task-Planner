@@ -1,6 +1,5 @@
 # Smart Task Planner
-
-<<<<<<< HEAD
+<img width="1902" height="900" alt="Screenshot 2025-10-15 154047" src="[https://github.com/user-attachments/assets/b8838334-23cc-4a7f-bfd0-edc516fdc642](https://youtu.be/XkQks-2c0OE)" />
 [![Watch the Demo](https://img.youtube.com/vi/XkQks-2c0OE/0.jpg)](https://youtu.be/XkQks-2c0OE)
 
 https://youtu.be/XkQks-2c0OE
@@ -9,7 +8,7 @@ https://youtu.be/XkQks-2c0OE
 <img width="1877" height="898" alt="Screenshot 2025-10-15 154233" src="https://github.com/user-attachments/assets/241035fc-9286-4be8-b87e-9d6f8f7d2b4a" />
 <img width="1102" height="913" alt="Screenshot 2025-10-15 154322" src="https://github.com/user-attachments/assets/3dd14c47-215c-413b-baef-36b967137008" />
 <img width="1101" height="918" alt="Screenshot 2025-10-15 154340" src="https://github.com/user-attachments/assets/b209a4aa-0e16-49e6-941b-eeb3c5f687ba" />
-<img width="1902" height="900" alt="Screenshot 2025-10-15 154047" src="https://github.com/user-attachments/assets/b8838334-23cc-4a7f-bfd0-edc516fdc642" />
+
 
 
 Break user goals into actionable tasks with timelines using AI reasoning. Users sign up/log in, submit a goal (e.g., "Launch a product in 2 weeks"), and receive a structured multi-step plan with dependencies, phases, priorities, and estimated durations. Plans and tasks are stored for later tracking in the Profile page.
