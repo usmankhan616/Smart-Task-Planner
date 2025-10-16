@@ -35,12 +35,17 @@ if DATABASE_URL.lower().startswith("postgresql"):
             infos = socket.getaddrinfo(hostname, None, family=socket.AF_INET)
             if infos:
                 ipv4_addr = infos[0][4][0]
-                # hostaddr informs libpq to connect using IPv4, keep original host for auth/reference
+                # Force IPv4 via both libpq env and connect args
+                os.environ["PGHOSTADDR"] = ipv4_addr
+                os.environ["PGHOST"] = hostname
                 connect_args["hostaddr"] = ipv4_addr
                 connect_args["host"] = hostname
     except Exception:
         # Non-fatal; continue without hostaddr
         pass
+
+    # Keep connection attempts short to fail fast on cold boots
+    connect_args["connect_timeout"] = int(os.getenv("DB_CONNECT_TIMEOUT", "5"))
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args, **engine_kwargs)
 
