@@ -3,7 +3,7 @@ fastapi==0.104.1
 uvicorn[standard]
 jinja2
 python-multipart
-
+gunicorn
 # Database and Data Validation
 sqlmodel
 psycopg2-binary
