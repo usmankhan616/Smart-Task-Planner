@@ -1,5 +1,7 @@
 import os
 import time
+import socket
+from urllib.parse import urlparse
 from sqlmodel import create_engine, SQLModel
 from dotenv import load_dotenv
 
@@ -16,6 +18,7 @@ engine_kwargs = {
     "pool_pre_ping": True,
     "pool_recycle": 300,
 }
+
 if DATABASE_URL.lower().startswith("postgresql"):
     # Ensure SSL is required and use small pools for web dynos
     connect_args["sslmode"] = os.getenv("DB_SSLMODE", "require")
@@ -23,6 +26,21 @@ if DATABASE_URL.lower().startswith("postgresql"):
         "pool_size": int(os.getenv("DB_POOL_SIZE", "5")),
         "max_overflow": int(os.getenv("DB_MAX_OVERFLOW", "5")),
     })
+    # Prefer IPv4 hostaddr to avoid IPv6 egress issues on some platforms
+    force_ipv4 = os.getenv("DB_FORCE_IPV4", "true").lower() == "true"
+    try:
+        parsed = urlparse(DATABASE_URL)
+        hostname = parsed.hostname
+        if force_ipv4 and hostname:
+            infos = socket.getaddrinfo(hostname, None, family=socket.AF_INET)
+            if infos:
+                ipv4_addr = infos[0][4][0]
+                # hostaddr informs libpq to connect using IPv4, keep original host for auth/reference
+                connect_args["hostaddr"] = ipv4_addr
+                connect_args["host"] = hostname
+    except Exception:
+        # Non-fatal; continue without hostaddr
+        pass
 
 engine = create_engine(DATABASE_URL, connect_args=connect_args, **engine_kwargs)
 
