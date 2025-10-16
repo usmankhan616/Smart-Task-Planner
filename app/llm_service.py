@@ -50,7 +50,7 @@ class LLMService:
         
         # Google Gemini
         if os.getenv("GEMINI_API_KEY"):
-            gemini_model = os.getenv("LLM_GEMINI_MODEL", "gemini/gemini-1.5-flash")
+            gemini_model = os.getenv("LLM_GEMINI_MODEL", "gemini/gemini-1.5-flash-latest")
             # Normalize model name for litellm gemini adapter
             if not gemini_model.startswith("gemini/"):
                 gemini_model = f"gemini/{gemini_model.lstrip('models/')}"
