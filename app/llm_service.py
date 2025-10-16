@@ -33,7 +33,7 @@ class LLMService:
         # OpenAI
         if os.getenv("OPENAI_API_KEY"):
             self.providers.append({
-                "model": "gpt-3.5-turbo",
+                "model": os.getenv("LLM_OPENAI_MODEL", "gpt-3.5-turbo"),
                 "api_key": os.getenv("OPENAI_API_KEY"),
                 "provider": "openai"
             })
@@ -42,7 +42,7 @@ class LLMService:
         # Anthropic Claude
         if os.getenv("ANTHROPIC_API_KEY"):
             self.providers.append({
-                "model": "claude-3-haiku-20240307",
+                "model": os.getenv("LLM_ANTHROPIC_MODEL", "claude-3-haiku-20240307"),
                 "api_key": os.getenv("ANTHROPIC_API_KEY"),
                 "provider": "anthropic"
             })
@@ -50,12 +50,16 @@ class LLMService:
         
         # Google Gemini
         if os.getenv("GEMINI_API_KEY"):
+            gemini_model = os.getenv("LLM_GEMINI_MODEL", "gemini/gemini-1.5-flash")
+            # Normalize model name for litellm gemini adapter
+            if not gemini_model.startswith("gemini/"):
+                gemini_model = f"gemini/{gemini_model.lstrip('models/')}"
             self.providers.append({
-                "model": "gemini/gemini-pro",
+                "model": gemini_model,
                 "api_key": os.getenv("GEMINI_API_KEY"),
                 "provider": "gemini"
             })
-            logger.info("✓ Gemini provider configured")
+            logger.info(f"✓ Gemini provider configured ({gemini_model})")
         
         if not self.providers:
             logger.warning("⚠️ No LLM providers configured! Check your .env file.")
@@ -70,9 +74,13 @@ class LLMService:
 
     async def _call_completion(self, provider: Dict[str, str], messages: List[Dict[str, str]], temperature: float = 0.7, max_tokens: int = 2000) -> str:
         self._set_api_key_for_provider(provider)
+        # Ensure correct gemini model prefix
+        model_name = provider['model']
+        if provider['provider'] == 'gemini' and not model_name.startswith('gemini/'):
+            model_name = f"gemini/{model_name.lstrip('models/')}"
         response = await asyncio.to_thread(
             completion,
-            model=provider['model'],
+            model=model_name,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens
@@ -83,6 +91,26 @@ class LLMService:
         elif content.startswith("```"):
             content = content.replace("```", "").strip()
         return content
+
+    def _select_primary_secondary(self):
+        """Select primary/secondary providers based on env vars.
+        LLM_PRIMARY_PROVIDER and LLM_SECONDARY_PROVIDER can be one of: openai, anthropic, gemini
+        If unset or unavailable, fall back to available providers order.
+        """
+        if not self.providers:
+            return None, None
+        name_to_provider = {p['provider']: p for p in self.providers}
+        primary_name = os.getenv("LLM_PRIMARY_PROVIDER")
+        secondary_name = os.getenv("LLM_SECONDARY_PROVIDER")
+
+        primary = name_to_provider.get(primary_name) if primary_name else None
+        primary = primary or (self.providers[0] if self.providers else None)
+
+        secondary = name_to_provider.get(secondary_name) if secondary_name else None
+        if not secondary:
+            # pick a different provider than primary if possible
+            secondary = next((p for p in self.providers if p is not primary), primary)
+        return primary, secondary
     
     async def generate_tasks(self, user_goal: str) -> List[TaskBreakdown]:
         """Generate tasks using multi-model workflow: one model drafts, another elaborates each task."""
@@ -90,8 +118,10 @@ class LLMService:
             logger.warning("No providers configured, using fallback")
             return self._get_fallback_tasks(user_goal)
         
-        primary = self.providers[0]
-        secondary = self.providers[1] if len(self.providers) > 1 else self.providers[0]
+        primary, secondary = self._select_primary_secondary()
+        if not primary:
+            logger.warning("No providers configured, using fallback")
+            return self._get_fallback_tasks(user_goal)
 
         draft_system = (
             "You are an expert project manager. Return ONLY a JSON array of task stubs for the goal, "
