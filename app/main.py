@@ -21,7 +21,8 @@ templates = Jinja2Templates(directory="templates")
 
 @app.on_event("startup")
 def on_startup():
-    create_db_and_tables()
+    # Retry DB init on cold starts or transient network issues
+    create_db_and_tables(retries=5, delay=2.0)
 
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request, current_user: Optional[User] = Depends(get_current_user)):
