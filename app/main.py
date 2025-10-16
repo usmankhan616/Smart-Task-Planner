@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request, Depends, Form, HTTPException, status
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
-from fastapi.security import OAuth2PasswordRequestForm
 from sqlmodel import Session, select
 from typing import Optional
 from datetime import timedelta
@@ -53,14 +52,11 @@ def get_login_form(request: Request):
     return templates.TemplateResponse("login.html", {"request": request})
 
 @app.post("/login")
-def handle_login(form_data: OAuth2PasswordRequestForm = Depends()):
+async def handle_login(request: Request, username: str = Form(...), password: str = Form(...)):
     with Session(engine) as session:
-        user = session.exec(select(User).where(User.email == form_data.username)).first()
-        if not user or not verify_password(form_data.password, user.hashed_password):
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Incorrect email or password",
-            )
+        user = session.exec(select(User).where(User.email == username)).first()
+        if not user or not verify_password(password, user.hashed_password):
+            return templates.TemplateResponse("login.html", {"request": request, "error": "Incorrect email or password"}, status_code=status.HTTP_401_UNAUTHORIZED)
         
         access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         access_token = create_access_token(
